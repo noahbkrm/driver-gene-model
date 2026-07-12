@@ -8,6 +8,7 @@ shared attention-pooling module can treat them uniformly.
 
 Input columns (5, from `cohort.clinical`)
     Categorical (lookup-table embedded):
+    test
 
 
 
