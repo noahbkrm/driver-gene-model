@@ -48,7 +48,6 @@ class Cohort:
     responders: dict[str, tuple[np.ndarray, np.ndarray]] # driver -> (gene_idx, log2fc)
 
 # Builders
-
 def _make_clinical(rng: np.random.Generator, driver_alt: np.ndarray) -> pd.DataFrame:
     age = rng.integers(30, 86, N_PATIENTS)
     sex = rng.integers(0, 2, N_PATIENTS)
