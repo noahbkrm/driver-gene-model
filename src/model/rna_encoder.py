@@ -50,8 +50,12 @@ from dataclasses import dataclass
 @dataclass
 class RnaStats:
     kept_gene_names: list[str]
-    gene_mean: np.ndarray
+    train_gene_mean: np.ndarray
     gene_std: np.ndarray
+
+    @property
+    def n_genes(self):
+        return len(self.kept_gene_names)
 
 class RnaEmbedding(nn.Module):
     def __init__(self, hidden_dim: int = HIDDEN_DIM, gene_count: int = 2000):
@@ -62,6 +66,26 @@ class RnaEmbedding(nn.Module):
         self.layernorm = nn.LayerNorm(hidden_dim)
     
     @staticmethod
+    def fit(train_df: pd.DataFrame) -> RnaStats: # Fitting RnaStats on training data
+
+        # Drop gene if fewer than 5% of columns are populated
+        mask = df.isna() | (df == 0) | (df == "0")
+        valid_fraction = 1 - mask.mean(axis=0)
+        df = df.loc[:, valid_fraction >= 0.05]
+
+        # Fill NAs
+        column_means = df.mean(axis = 0)
+        index = 0
+        for col_name in df.columns.tolist():
+            df = df[col_name].fillna(column_means[index, 1], inplace = True) 
+            index = index + 1
+        
+        # Normalize for library size using CPM (Counts Per Million)
+        column_counts = df.sum(axis = 0)
+
+        return True
+
+    @staticmethod
     def prepare(
         df: pd.DataFrame,
         stats: RnaStats,
@@ -71,12 +95,11 @@ class RnaEmbedding(nn.Module):
 
         observed_mask = 1 - df.isna() # True (1) when false, so 1- means 0 when false
 
-        # Drop gene if fewer than 5% of columns are populated
-        mask = df.isna() | (df == 0) | (df == "0")
-        valid_fraction = 1 - mask.mean(axis=0)
-        df2 = df2.loc[:, valid_fraction >= 0.05]
 
-
+        # Fill NAs then normalize for library size using CPM (Counts Per Million)
+        for i in stats.kept_gene_names:
+            df = df[stats.kept_gene_names[i]].fillna(stats.train_gene_mean, inplace = True) 
+        column_counts = df.sum(axis = 0)
 
         observed_mask = torch.from_numpy(observed_mask.to_numpy(dtype = np.float32))
 
