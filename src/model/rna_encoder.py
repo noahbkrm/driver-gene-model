@@ -50,40 +50,44 @@ from dataclasses import dataclass
 @dataclass
 class RnaStats:
     kept_gene_names: list[str]
-    train_gene_mean: np.ndarray
-    gene_std: np.ndarray
+    train_gene_mean: pd.Series
+    train_gene_std: pd.Series
 
     @property
     def n_genes(self):
         return len(self.kept_gene_names)
 
 class RnaEmbedding(nn.Module):
-    def __init__(self, hidden_dim: int = HIDDEN_DIM, gene_count: int = 2000):
+    def __init__(self,  stats: RnaStats, hidden_dim: int = HIDDEN_DIM):
         super().__init__()
-        self.expression = nn.Embedding(gene_count, hidden_dim)
-        self.missing_bias = nn.Parameter(torch.empty(2, hidden_dim))
+        self.expression = nn.Embedding(stats.n_genes, hidden_dim)
+        self.missing_bias = nn.Parameter(torch.empty(hidden_dim))
         nn.init.normal(self.missing_bias, std = 0.02)
         self.layernorm = nn.LayerNorm(hidden_dim)
     
     @staticmethod
     def fit(train_df: pd.DataFrame) -> RnaStats: # Fitting RnaStats on training data
 
+        df = train_df.copy()
         # Drop gene if fewer than 5% of columns are populated
-        mask = df.isna() | (df == 0) | (df == "0")
+        mask = df.isna() | (df == 0)
         valid_fraction = 1 - mask.mean(axis=0)
         df = df.loc[:, valid_fraction >= 0.05]
-
-        # Fill NAs
-        column_means = df.mean(axis = 0)
-        index = 0
-        for col_name in df.columns.tolist():
-            df = df[col_name].fillna(column_means[index, 1], inplace = True) 
-            index = index + 1
+        col_names = df.columns.tolist()
         
         # Normalize for library size using CPM (Counts Per Million)
-        column_counts = df.sum(axis = 0)
+        library_size = df.sum(axis = 1)
+        df = df.div(library_size, axis = 0) * 1e6
 
-        return True
+        # Perform log1p normalization
+        df = np.log1p(df)
+
+        # Compute mean and standard deviation as np.ndarray
+        train_gene_std = df.std(axis = 0, ddof = 0)
+        train_gene_mean = df.mean(axis = 0)
+
+        rna_stats_obj = RnaStats(kept_gene_names=col_names, train_gene_mean= train_gene_mean, train_gene_std=train_gene_std)
+        return rna_stats_obj
 
     @staticmethod
     def prepare(
@@ -95,6 +99,10 @@ class RnaEmbedding(nn.Module):
 
         observed_mask = 1 - df.isna() # True (1) when false, so 1- means 0 when false
 
+        # Fill NAs
+        column_means = df.mean(axis = 0)
+        col_names = df.columns.tolist()
+        df = df.fillna(column_means)
 
         # Fill NAs then normalize for library size using CPM (Counts Per Million)
         for i in stats.kept_gene_names:
@@ -113,10 +121,4 @@ if __name__ == "__main__":
     df = df.copy()
     df2 = df.copy()
     print(df.shape)
-
-    # Drop gene if fewer than 5% of columns are populated
-    mask = df.isna() | (df == 0) | (df == "0")
-    valid_fraction = 1 - mask.mean(axis=0)
-    df2 = df2.loc[:, valid_fraction >= 0.05]
-
-    print(df2.shape)
+    print(df.iloc[:5, :5])
