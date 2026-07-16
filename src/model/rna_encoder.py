@@ -60,10 +60,15 @@ class RnaStats:
 class RnaEmbedding(nn.Module):
     def __init__(self,  stats: RnaStats, hidden_dim: int = HIDDEN_DIM):
         super().__init__()
-        self.expression = nn.Embedding(stats.n_genes, hidden_dim)
+        self.expression = nn.Linear(1, hidden_dim)
         self.missing_bias = nn.Parameter(torch.empty(hidden_dim))
-        nn.init.normal(self.missing_bias, std = 0.02)
+        nn.init.normal_(self.missing_bias, std = 0.02)
         self.layernorm = nn.LayerNorm(hidden_dim)
+        self.gene_embedding = nn.Embedding(stats.n_genes, hidden_dim)
+        self.register_buffer(  # Static so it won't be treated as a parameter to be optimized
+        "gene_ids",
+        torch.arange(stats.n_genes)
+        )
     
     @staticmethod
     def fit(train_df: pd.DataFrame) -> RnaStats: # Fitting RnaStats on training data
@@ -97,28 +102,57 @@ class RnaEmbedding(nn.Module):
         
         df = df.copy()
 
+        df = df[stats.kept_gene_names] # Filter to training retained genes
         observed_mask = 1 - df.isna() # True (1) when false, so 1- means 0 when false
 
-        # Fill NAs
-        column_means = df.mean(axis = 0)
-        col_names = df.columns.tolist()
-        df = df.fillna(column_means)
+        # Normalize for library size using CPM (Counts Per Million)
+        library_size = df.sum(axis = 1)
+        df = df.div(library_size, axis = 0) * 1e6
 
-        # Fill NAs then normalize for library size using CPM (Counts Per Million)
-        for i in stats.kept_gene_names:
-            df = df[stats.kept_gene_names[i]].fillna(stats.train_gene_mean, inplace = True) 
-        column_counts = df.sum(axis = 0)
+        # Perform log1p normalization
+        df = np.log1p(df)
 
+         # Fill NAs
+        df = df.fillna(stats.train_gene_mean)
+
+        # Calculate z-score using training means in standard deviation
+        df = (df - stats.train_gene_mean) / stats.train_gene_std
+
+        expression_tensor = torch.from_numpy(df.to_numpy(dtype = np.float32))
         observed_mask = torch.from_numpy(observed_mask.to_numpy(dtype = np.float32))
 
         return expression_tensor, observed_mask
     
     def forward(self, expression_tensor, mask):
-        return True
+
+        gene_emb = self.gene_embedding(self.gene_ids)
+
+        expression_emb = self.expression(expression_tensor.unsqueeze(-1))
+        was_missing_exp = (1 - mask).unsqueeze(-1)
+        expression_emb = expression_emb + was_missing_exp * self.missing_bias
+
+        combined_emb = gene_emb + expression_emb # Tokens
+        return self.layernorm(combined_emb)
 
 if __name__ == "__main__":
+    # Load synthetic RNA counts
     df = load_cohort().rna
-    df = df.copy()
-    df2 = df.copy()
-    print(df.shape)
-    print(df.iloc[:5, :5])
+
+    # Fit preprocessing statistics (normally train split only)
+    stats = RnaEmbedding.fit(df)
+
+    print(f"Retained genes: {stats.n_genes}")
+
+    # Convert dataframe -> tensors
+    expression_tensor, mask = RnaEmbedding.prepare(df, stats)
+
+    print(expression_tensor.shape, expression_tensor.dtype)
+    print(mask.shape, mask.dtype)
+
+    # Build encoder
+    model = RnaEmbedding(stats)
+
+    # Forward pass
+    out = model(expression_tensor, mask)
+
+    print(out.shape)

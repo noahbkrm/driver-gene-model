@@ -40,3 +40,4 @@ print(df2)
 df2 = df2.fillna(df2.mean(axis = 0, numeric_only = True))
 
 print(df2)
+
