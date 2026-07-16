@@ -99,10 +99,10 @@ class CNVEmbedding(nn.Module):
         cnv_state_tensor = torch.from_numpy(df.to_numpy(dtype=np.int64))
         return cnv_state_tensor
     
-    def forward(self, state_tensor):
+    def forward(self, cnv_state_tensor):
 
         gene_emb = self.gene_embedding(self.gene_ids)
-        state_emb = self.cnv_state_embedding(state_tensor)
+        state_emb = self.cnv_state_embedding(cnv_state_tensor)
 
         combined_emb = gene_emb + state_emb
         return self.layernorm(combined_emb)
