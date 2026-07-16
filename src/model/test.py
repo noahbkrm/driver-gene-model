@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import torch
 
 df = pd.DataFrame({
     'A': [1, 2, 5],
@@ -41,3 +42,5 @@ df2 = df2.fillna(df2.mean(axis = 0, numeric_only = True))
 
 print(df2)
 
+state_tensor = torch.from_numpy(df2.to_numpy(dtype=np.int64)).unsqueeze(-1)
+print(state_tensor.shape)

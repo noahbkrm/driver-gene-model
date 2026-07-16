@@ -66,8 +66,8 @@ class RnaEmbedding(nn.Module):
         self.layernorm = nn.LayerNorm(hidden_dim)
         self.gene_embedding = nn.Embedding(stats.n_genes, hidden_dim)
         self.register_buffer(  # Static so it won't be treated as a parameter to be optimized
-        "gene_ids",
-        torch.arange(stats.n_genes)
+            "gene_ids",
+            torch.arange(stats.n_genes)
         )
     
     @staticmethod
