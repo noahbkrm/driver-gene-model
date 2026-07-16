@@ -153,6 +153,12 @@ if __name__ == "__main__":
     model = RnaEmbedding(stats)
 
     # Forward pass
-    out = model(expression_tensor, mask)
+    batch_size = 32
 
-    print(out.shape)
+    for i in range(0, len(df), batch_size):
+        batch = expression_tensor[i:i+batch_size]
+        mask_batch = mask[i:i+batch_size]
+
+        out = model(batch, mask_batch)
+
+        print(out.shape)
