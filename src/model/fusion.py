@@ -13,25 +13,58 @@ from clinical_encoder import ClinicalEmbedding
 from rna_encoder import RnaEmbedding
     
 class TokenEmbedding(nn.Module):
-    def __init__(self, hidden_dim: int = HIDDEN_DIM):
-        self.register_buffer(  # Static so it won't be treated as a parameter to be optimized
-            "modality_embedding",
-            nn.Embedding(4, hidden_dim)
-        )
-    
+    def __init__(self, hidden_dim=HIDDEN_DIM):
+        super().__init__()
+        self.embedding = nn.Embedding(4, hidden_dim)
+
     def forward(
-            self,
-            clinical_tokens: torch.Tensor,
-            rna_tokens: torch.Tensor,
-            cnv_tokens: torch.Tensor,
-            snv_tokens: torch.Tensor,
-        ):
+        self,
+        clinical_tokens,
+        rna_tokens,
+        cnv_tokens,
+        snv_tokens,
+    ):
 
-        clinical_tokens = clinical_tokens + self.modality_embedding
-        rna_tokens = rna_tokens + self.modality_embedding
-        cnv_tokens = cnv_tokens + self.modality_embedding
-        snv_tokens = snv_tokens + self.modality_embedding
+        clinical_ids = torch.zeros(
+            clinical_tokens.shape[1],
+            dtype=torch.long,
+            device=clinical_tokens.device
+        )
 
-        combined_tokens = torch.cat([clinical_tokens, rna_tokens, cnv_tokens, snv_tokens], dim = 1)
-        return combined_tokens
+        rna_ids = torch.ones(
+            rna_tokens.shape[1],
+            dtype=torch.long,
+            device=rna_tokens.device
+        )
+
+        cnv_ids = torch.full(
+            (cnv_tokens.shape[1],),
+            2,
+            dtype=torch.long,
+            device=cnv_tokens.device
+        )
+
+        snv_ids = torch.full(
+            (snv_tokens.shape[1],),
+            3,
+            dtype=torch.long,
+            device=snv_tokens.device
+        )
+
+        clinical_tokens = clinical_tokens + self.embedding(clinical_ids)
+        rna_tokens = rna_tokens + self.embedding(rna_ids)
+        cnv_tokens = cnv_tokens + self.embedding(cnv_ids)
+        snv_tokens = snv_tokens + self.embedding(snv_ids)
+
+        tokens = torch.cat(
+            [
+                clinical_tokens,
+                rna_tokens,
+                cnv_tokens,
+                snv_tokens,
+            ],
+            dim=1
+        )
+
+        return tokens
 
