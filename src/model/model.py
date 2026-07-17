@@ -14,12 +14,20 @@ from fusion import TokenEmbedding
 from attention_pooling import AttentionPooling
 
 # Add type suggestions
-def prepare_model_inputs(clinical_df, snv_df, cnv_df, rna_df, train_means, rna_stats: RnaStats):
+def prepare_model_inputs(
+        clinical_df: pd.DataFrame, 
+        snv_df: pd.DataFrame, 
+        cnv_df: pd.DataFrame,
+        rna_df: pd.DataFrame, 
+        train_means: dict[str,float], 
+        rna_stats: RnaStats
+    ) -> dict[str, torch.Tensor]:
+
     clinical_cat, clinical_cont, clinical_mask = ClinicalEmbedding.prepare(clinical_df, train_means)
     rna_expression, rna_mask = RnaEmbedding.prepare(rna_df, rna_stats)
     cnv_states = CNVEmbedding.prepare(cnv_df)
     snv_states = SNVEmbedding.prepare(snv_df)
-    batch_dict = {
+    batch = {
         "clinical_cat": clinical_cat,
         "clinical_cont": clinical_cont,
         "clinical_mask": clinical_mask,
@@ -28,36 +36,36 @@ def prepare_model_inputs(clinical_df, snv_df, cnv_df, rna_df, train_means, rna_s
         "cnv_states": cnv_states,
         "snv_states": snv_states,
     }
-    return batch_dict
+    return batch
 
 class PatientModel(nn.Module):
-    def __init__(self):
+    def __init__(self, rna_stats: RnaStats, n_genes: int, hidden_dim: int = HIDDEN_DIM):
         super().__init__()
-        self.cnv_encoder =  CNVEmbedding()
-        self.snv_encoder = SNVEmbedding()
-        self.clinical_encoder = ClinicalEmbedding()
-        self.rna_encoder = RnaEmbedding()
+        self.cnv_encoder =  CNVEmbedding(n_genes, hidden_dim)
+        self.snv_encoder = SNVEmbedding(n_genes, hidden_dim)
+        self.clinical_encoder = ClinicalEmbedding(hidden_dim)
+        self.rna_encoder = RnaEmbedding(rna_stats, hidden_dim)
         self.combine_tokens = TokenEmbedding()
         self.attention_pooling = AttentionPooling()
 
-    def forward(self, batch_dict):
+    def forward(self, batch):
         clinical_tokens = self.clinical_encoder(
-            batch_dict["clinical_cat"],
-            batch_dict["clinical_cont"],
-            batch_dict["clinical_mask"],
+            batch["clinical_cat"],
+            batch["clinical_cont"],
+            batch["clinical_mask"],
         )
 
         rna_tokens = self.rna_encoder(
-            batch_dict["rna_expression"],
-            batch_dict["rna_mask"],
+            batch["rna_expression"],
+            batch["rna_mask"],
         )
 
         cnv_tokens = self.cnv_encoder(
-            batch_dict["cnv_state"],
+            batch["cnv_states"],
         )
 
         snv_tokens = self.snv_encoder(
-            batch_dict["snv_state"],
+            batch["snv_states"],
         )
 
         token_emb = self.combine_tokens(clinical_tokens, rna_tokens, cnv_tokens, snv_tokens)
