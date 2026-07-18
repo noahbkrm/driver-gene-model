@@ -144,3 +144,4 @@ if __name__ == "__main__":
         # Only test one batch
         break
     print(output.type)
+    print(output.shape[1])
