@@ -10,6 +10,7 @@ from clinical_encoder import ClinicalEmbedding
 from rna_encoder import RnaEmbedding, RnaStats
 from fusion import TokenEmbedding
 from attention_pooling import AttentionPooling
+from mask import SNVMask
 
 # Add type suggestions
 def prepare_model_inputs(
@@ -41,12 +42,13 @@ class PatientModel(nn.Module):
         super().__init__()
         self.cnv_encoder =  CNVEmbedding(n_genes, hidden_dim)
         self.snv_encoder = SNVEmbedding(n_genes, hidden_dim)
+        self.snv_masker = SNVMask(hidden_dim)
         self.clinical_encoder = ClinicalEmbedding(hidden_dim)
         self.rna_encoder = RnaEmbedding(rna_stats, hidden_dim)
         self.combine_tokens = TokenEmbedding(hidden_dim)
         self.attention_pooling = AttentionPooling(hidden_dim, batch_size)
 
-    def forward(self, batch):
+    def forward(self, batch, mask_snv = False):
         clinical_tokens = self.clinical_encoder(
             batch["clinical_cat"],
             batch["clinical_cont"],
@@ -65,6 +67,9 @@ class PatientModel(nn.Module):
         snv_tokens = self.snv_encoder(
             batch["snv_states"],
         )
+
+        if mask_snv:
+            snv_tokens = self.snv_masker(snv_tokens)
 
         token_emb = self.combine_tokens(clinical_tokens, rna_tokens, cnv_tokens, snv_tokens)
         patient_emb = self.attention_pooling(token_emb)

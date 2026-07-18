@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import pandas as pd
-from constants import HIDDEN_DIM, BATCH
+from constants import HIDDEN_DIM
 
 class SNVMask(nn.Module):
     def __init__(self, hidden_dim: int = HIDDEN_DIM):
