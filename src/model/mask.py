@@ -3,12 +3,12 @@ import torch.nn as nn
 import numpy as np
 import pandas as pd
 from constants import HIDDEN_DIM, BATCH
-from snv_encoder import SNVEmbedding
 
-def replaceSNV()
-    return True
-
-class MaskEmbedding(nn.Module):
-    def __init__(self, snv_emb: torch.Tensor):
+class SNVMask(nn.Module):
+    def __init__(self, hidden_dim: int = HIDDEN_DIM):
         super().__init__()
-        self.snv_mask_embedding = nn.Embedding(snv_emb.shape[0], snv_emb.shape[1], snv_emb.shape[2])
+        self.snv_mask_embedding = nn.Parameter(torch.randn(hidden_dim))
+
+    def forward(self, snv_tokens: torch.Tensor):
+        mask_snv_tokens = self.snv_mask_embedding.expand_as(snv_tokens) # Broadcast to (batch, n_genes, hidden_dim)
+        return mask_snv_tokens
