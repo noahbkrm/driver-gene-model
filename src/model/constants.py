@@ -1,7 +1,11 @@
 __all__ = [
     "HIDDEN_DIM",
-    "BATCH"
+    "BATCH",
+    "LEARNING_RATE",
+    "EMA_PARAM",
 ]
 
 HIDDEN_DIM = 768
 BATCH = 5
+LEARNING_RATE = 0.001
+EMA_PARAM = 0.996
