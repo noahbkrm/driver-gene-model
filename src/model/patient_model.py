@@ -2,9 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import pandas as pd
-from data import load_cohort
 from constants import HIDDEN_DIM, BATCH
-from dataclasses import dataclass
 
 from cnv_encoder import CNVEmbedding
 from snv_encoder import SNVEmbedding
