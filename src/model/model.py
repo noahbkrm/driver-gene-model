@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 import pandas as pd
 from data import load_cohort
-from constants import HIDDEN_DIM
+from constants import HIDDEN_DIM, BATCH
 from dataclasses import dataclass
 
 from cnv_encoder import CNVEmbedding
@@ -39,14 +39,14 @@ def prepare_model_inputs(
     return batch
 
 class PatientModel(nn.Module):
-    def __init__(self, rna_stats: RnaStats, n_genes: int, hidden_dim: int = HIDDEN_DIM):
+    def __init__(self, rna_stats: RnaStats, n_genes: int, hidden_dim: int = HIDDEN_DIM, batch_size: int = BATCH):
         super().__init__()
         self.cnv_encoder =  CNVEmbedding(n_genes, hidden_dim)
         self.snv_encoder = SNVEmbedding(n_genes, hidden_dim)
         self.clinical_encoder = ClinicalEmbedding(hidden_dim)
         self.rna_encoder = RnaEmbedding(rna_stats, hidden_dim)
-        self.combine_tokens = TokenEmbedding()
-        self.attention_pooling = AttentionPooling()
+        self.combine_tokens = TokenEmbedding(hidden_dim)
+        self.attention_pooling = AttentionPooling(hidden_dim, batch_size)
 
     def forward(self, batch):
         clinical_tokens = self.clinical_encoder(
