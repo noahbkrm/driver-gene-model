@@ -35,6 +35,7 @@ class PatientDataset(Dataset):
 
         # Check number of patients
         self.n_patients = self.clinical_cat.shape[0]
+        self.patient_ids = clinical_df.index
 
     def __len__(self):
         return self.n_patients
@@ -54,4 +55,4 @@ class PatientDataset(Dataset):
             "snv_states": self.snv_states[idx],
         }
 
-        return patient
+        return patient, self.patient_ids[idx]

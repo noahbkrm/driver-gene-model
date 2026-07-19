@@ -73,7 +73,7 @@ def JEPATraining(
     predictor_model.train()
     target_model.eval()
     total_loss = 0
-    for batch in loader:
+    for batch, _ in loader:
 
         optimizer.zero_grad()
 
@@ -126,12 +126,12 @@ def prepare_dataset(cohort: pd.DataFrame, train_means: dict[str, float], rna_sta
 
     return dataset
 
-def initializeLoader(dataset: PatientDataset, batch_size: int = BATCH):
+def initializeLoader(dataset: PatientDataset, batch_size: int = BATCH, shuffle = True):
     # Data loading
     loader = DataLoader(
         dataset,
         batch_size=batch_size,
-        shuffle=True,
+        shuffle=shuffle,
         pin_memory=True,
     )
 
@@ -142,10 +142,11 @@ def generate_embeddings(model, loader, device):
     model.eval()
 
     embeddings = []
+    patient_ids = []
 
     with torch.no_grad():
 
-        for batch in loader:
+        for batch, ids in loader:
 
             batch = {
                 k:v.to(device)
@@ -157,8 +158,9 @@ def generate_embeddings(model, loader, device):
             embeddings.append(
                 z.cpu()
             )
+            patient_ids.extend(ids)
 
-    return torch.cat(embeddings, dim=0)
+    return torch.cat(embeddings, dim=0), patient_ids
 
 if __name__ == "__main__":
     train_cohort = load_cohort()
@@ -211,15 +213,39 @@ if __name__ == "__main__":
     for p in context_model.parameters(): # Freeze the context model
         p.requires_grad = False
             
-    embeddings = generate_embeddings( # Generate the patient-level embeddings
+    embedding_loader = initializeLoader(
+        train_dataset,
+        shuffle=False
+    )
+
+    embeddings, patient_ids = generate_embeddings(
         context_model,
-        loader,
+        embedding_loader,
         device
     )
+
     print(embeddings.shape)
 
-    torch.save(embeddings, "patient_embeddings.pt")
+    print(
+        "Embedding variance:",
+        embeddings.var(dim=0).mean()
+    )
 
-    embedding_df = pd.DataFrame(embeddings.numpy())
-    embedding_df["patient_id"] = train_cohort.clinical.index
-    embedding_df.to_csv("patient_embeddings.csv", index=False)
+    print(
+        "Patient similarity:",
+        F.cosine_similarity(
+            embeddings[0],
+            embeddings[1],
+            dim=0
+        )
+    )
+
+    torch.save(embeddings,"patient_embeddings.pt")
+
+    embedding_df = pd.DataFrame(
+        embeddings.numpy(),
+        index=patient_ids
+    )
+
+    embedding_df.index.name = "patient_id"
+    embedding_df.to_csv("patient_embeddings.csv")
