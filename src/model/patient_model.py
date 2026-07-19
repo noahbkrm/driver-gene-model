@@ -12,31 +12,6 @@ from fusion import TokenEmbedding
 from attention_pooling import AttentionPooling
 from mask import SNVMask
 
-# Add type suggestions
-def prepare_model_inputs(
-        clinical_df: pd.DataFrame, 
-        snv_df: pd.DataFrame, 
-        cnv_df: pd.DataFrame,
-        rna_df: pd.DataFrame, 
-        train_means: dict[str,float], 
-        rna_stats: RnaStats
-    ) -> dict[str, torch.Tensor]:
-
-    clinical_cat, clinical_cont, clinical_mask = ClinicalEmbedding.prepare(clinical_df, train_means)
-    rna_expression, rna_mask = RnaEmbedding.prepare(rna_df, rna_stats)
-    cnv_states = CNVEmbedding.prepare(cnv_df)
-    snv_states = SNVEmbedding.prepare(snv_df)
-    batch = {
-        "clinical_cat": clinical_cat,
-        "clinical_cont": clinical_cont,
-        "clinical_mask": clinical_mask,
-        "rna_expression": rna_expression,
-        "rna_mask": rna_mask,
-        "cnv_states": cnv_states,
-        "snv_states": snv_states,
-    }
-    return batch
-
 class PatientModel(nn.Module):
     def __init__(self, rna_stats: RnaStats, n_genes: int, hidden_dim: int = HIDDEN_DIM, batch_size: int = BATCH):
         super().__init__()

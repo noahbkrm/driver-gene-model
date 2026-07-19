@@ -4,9 +4,10 @@ import numpy as np
 import pandas as pd
 from data import load_cohort
 from constants import HIDDEN_DIM, BATCH, LEARNING_RATE, EMA_PARAM
-from patient_model import PatientModel, prepare_model_inputs
+from patient_model import PatientModel
 from rna_encoder import RnaStats
 from predictor import Predictor
+from dataset_handler import PatientDataset
 import copy
 from torch.utils.data import DataLoader
 
@@ -51,19 +52,12 @@ def JEPATraining(
         target_model: PatientModel,
         context_model: PatientModel,
         predictor_model: Predictor,
+        loader: DataLoader,
         optimizer,
         ema_param: int = EMA_PARAM,
-        batch_size: int = BATCH
     ):
 
-    # Data loading
-    loader = DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=False
-    )
-
-    for batch in enumerate(loader):
+    for batch in loader:
 
         with torch.no_grad():
             z_target = target_model(batch, mask_snv = False) # Calculate target
@@ -79,3 +73,32 @@ def JEPATraining(
         optimizer.step()
         update_target_model(target_model, context_model, ema_param)
 
+def prepareDataset():
+    cohort = load_cohort()
+
+    c_df = cohort.clinical
+    train_means = {
+        "age": c_df["age"].dropna().mean(),
+        "tumor_purity_pct": c_df["tumor_purity_pct"].dropna().mean(),
+    }
+
+    dataset = PatientDataset(
+        clinical_df=cohort.clinical,
+        snv_df=cohort.snv,
+        cnv_df=cohort.cnv,
+        rna_df=cohort.rna,
+        train_means=train_means,
+        rna_stats=RnaStats,
+    )
+
+    return dataset
+
+def initializeLoader(dataset: PatientDataset, batch_size: int = BATCH):
+    # Data loading
+    loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=False
+    )
+
+    return loader
