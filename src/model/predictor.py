@@ -12,9 +12,10 @@ class Predictor(nn.Module):
     def __init__(self, hidden_dim: int = HIDDEN_DIM):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim*4),
             nn.GELU(),
-            nn.Linear(hidden_dim, hidden_dim)
+            nn.LayerNorm(hidden_dim*4),
+            nn.Linear(hidden_dim*4, hidden_dim)
         )
     
     def forward(self, z_context):
