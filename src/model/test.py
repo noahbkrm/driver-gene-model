@@ -34,10 +34,9 @@ df2 = pd.DataFrame(
     }
 )
 
+x = torch.randn(1000, 1000).cuda()
+y = torch.randn(1000, 1000).cuda()
 
-device = torch.device(
-    "cuda" if torch.cuda.is_available()
-    else "cpu"
-)
+z = x @ y
 
-print(device)
+print(z.device)

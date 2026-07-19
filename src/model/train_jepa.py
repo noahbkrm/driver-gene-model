@@ -26,6 +26,11 @@ def initialize_models(
     
     predictor_model = Predictor(hidden_dim) 
 
+    # Move models to GPU
+    target_model.to(device)
+    context_model.to(device)
+    predictor_model.to(device)
+
     optimizer = torch.optim.AdamW(
         list(context_model.parameters()) +
         list(predictor_model.parameters()),
@@ -67,13 +72,18 @@ def JEPATraining(
 
     for batch in loader:
 
+        batch = {
+            key: value.to(device)
+            for key, value in batch.items()
+        }
+
         with torch.no_grad():
             z_target = target_model(batch, mask_snv = False) # Calculate target
         z_context_raw = context_model(batch, mask_snv = True) # Calculate context with masking
         z_context_pred = predictor_model(z_context_raw) # Pass conext to predictor to for stabilization
 
         optimizer.zero_grad()
-        
+
         # Compute MSE
         loss = mse_loss_function(z_context_pred, z_target)
 
@@ -106,6 +116,7 @@ def initializeLoader(dataset: PatientDataset, batch_size: int = BATCH):
 
 if __name__ == "__main__":
     train_cohort = load_cohort()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     c_df = train_cohort.clinical
     train_means = {
