@@ -3,22 +3,24 @@ import torch.nn as nn
 import numpy as np
 import pandas as pd
 from data import load_cohort
-from constants import HIDDEN_DIM, BATCH, LEARNING_RATE, EMA_PARAM
+from constants import *
 from patient_model import PatientModel
 from rna_encoder import RnaStats, RnaEmbedding
 from predictor import Predictor
 from dataset_handler import PatientDataset
 import copy
 from torch.utils.data import DataLoader
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def initialize_models(
         rna_stats: RnaStats, 
         n_genes: int,
+        n_variant_genes: int,
         hidden_dim: int = HIDDEN_DIM,
         batch_size: int = BATCH,
     ):
 
-    context_model = PatientModel(rna_stats, n_genes, hidden_dim, batch_size)
+    context_model = PatientModel(rna_stats, n_genes, n_variant_genes, hidden_dim, batch_size)
     target_model = copy.deepcopy(context_model) # Set target to match context 
     
     for param in target_model.parameters():
@@ -69,7 +71,7 @@ def JEPATraining(
     context_model.train()
     predictor_model.train()
     target_model.eval()
-
+    total_loss = 0
     for batch in loader:
 
         batch = {
@@ -90,6 +92,11 @@ def JEPATraining(
         loss.backward()
         optimizer.step()
         update_target_model(target_model, context_model, ema_param)
+        total_loss += loss.item()
+    
+    avg_loss = total_loss / len(loader)
+
+    return avg_loss
 
 def prepare_dataset(cohort: pd.DataFrame, train_means: dict[str, float], rna_stats: RnaStats):
 
@@ -114,10 +121,101 @@ def initializeLoader(dataset: PatientDataset, batch_size: int = BATCH):
 
     return loader
 
+
+def smoke_test(
+        target_model,
+        context_model,
+        predictor_model,
+        loader,
+        optimizer,
+    ):
+
+    print("Running smoke test...")
+
+    # Get one batch
+    batch = next(iter(loader))
+
+    print("\nOriginal batch:")
+    for key, value in batch.items():
+        print(
+            key,
+            value.shape,
+            value.dtype,
+            value.device
+        )
+
+    # Move batch to GPU
+    batch = {
+        key: value.to(device)
+        for key, value in batch.items()
+    }
+
+    print("\nMoved batch:")
+    for key, value in batch.items():
+        print(
+            key,
+            value.shape,
+            value.dtype,
+            value.device
+        )
+
+    # Forward pass
+    target_model.eval()
+    context_model.train()
+    predictor_model.train()
+
+    with torch.no_grad():
+        z_target = target_model(
+            batch,
+            mask_snv=False
+        )
+
+    z_context = context_model(
+        batch,
+        mask_snv=True
+    )
+
+    z_pred = predictor_model(z_context)
+
+    print("\nEmbeddings:")
+    print("z_target:", z_target.shape)
+    print("z_context:", z_context.shape)
+    print("z_pred:", z_pred.shape)
+
+    # Loss
+    loss_fn = nn.MSELoss()
+
+    loss = loss_fn(
+        z_pred,
+        z_target
+    )
+
+    print("\nLoss:")
+    print(loss)
+
+    # Backprop
+    optimizer.zero_grad()
+
+    loss.backward()
+
+    optimizer.step()
+
+    print("\nBackprop successful!")
+
+    # Check GPU memory
+    if torch.cuda.is_available():
+        print("\nGPU memory:")
+        print(
+            torch.cuda.memory_allocated()/1024**2,
+            "MB allocated"
+        )
+
+    print("\nSmoke test passed!")
+
 if __name__ == "__main__":
     train_cohort = load_cohort()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    n_variant_genes = train_cohort.cnv.shape[1]
     c_df = train_cohort.clinical
     train_means = {
         "age": c_df["age"].dropna().mean(),
@@ -133,12 +231,15 @@ if __name__ == "__main__":
     target_model, context_model, predictor, optimizer = initialize_models(
         rna_stats=rna_stats,
         n_genes=rna_stats.n_genes,
+        n_variant_genes=n_variant_genes
     )
 
-    JEPATraining(
-        target_model,
-        context_model,
-        predictor,
-        loader,
-        optimizer,
-    )
+    for epoch in range(NUM_EPOCHS):
+        loss = JEPATraining(
+            target_model,
+            context_model,
+            predictor,
+            loader,
+            optimizer,
+        ) 
+        print(f"Epoch {epoch+1}/{NUM_EPOCHS}, Loss: {loss:.4f}")

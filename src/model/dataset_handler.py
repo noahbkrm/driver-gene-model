@@ -34,11 +34,7 @@ class PatientDataset(Dataset):
         self.snv_states = snv_states
 
         # Check number of patients
-        self.n_patients = self.tensors["clinical_cat"].shape[0]
-
-        assert self.tensors["clinical_cat"].shape[0] == self.tensors["rna_expression"].shape[0]
-        assert self.tensors["clinical_cat"].shape[0] == self.tensors["cnv_states"].shape[0]
-        assert self.tensors["clinical_cat"].shape[0] == self.tensors["snv_states"].shape[0]
+        self.n_patients = self.clinical_cat.shape[0]
 
     def __len__(self):
         return self.n_patients
@@ -46,16 +42,16 @@ class PatientDataset(Dataset):
     def __getitem__(self, idx):
 
         patient = {
-            "clinical_cat": self.clinical_cat["clinical_cat"][idx],
-            "clinical_cont": self.clinical_cont["clinical_cont"][idx],
-            "clinical_mask": self.clinical_mask["clinical_mask"][idx],
+            "clinical_cat": self.clinical_cat[idx],
+            "clinical_cont": self.clinical_cont[idx],
+            "clinical_mask": self.clinical_mask[idx],
 
-            "rna_expression": self.rna_expression["rna_expression"][idx],
-            "rna_mask": self.rna_mask["rna_mask"][idx],
+            "rna_expression": self.rna_expression[idx],
+            "rna_mask": self.rna_mask[idx],
 
-            "cnv_states": self.cnv_states["cnv_states"][idx],
+            "cnv_states": self.cnv_states[idx],
 
-            "snv_states": self.snv_states["snv_states"][idx],
+            "snv_states": self.snv_states[idx],
         }
 
         return patient

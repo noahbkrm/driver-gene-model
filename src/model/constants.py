@@ -3,9 +3,11 @@ __all__ = [
     "BATCH",
     "LEARNING_RATE",
     "EMA_PARAM",
+    "NUM_EPOCHS"
 ]
 
 HIDDEN_DIM = 768
 BATCH = 5
 LEARNING_RATE = 1e-4
 EMA_PARAM = 0.996
+NUM_EPOCHS = 100

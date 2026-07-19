@@ -13,10 +13,10 @@ from attention_pooling import AttentionPooling
 from mask import SNVMask
 
 class PatientModel(nn.Module):
-    def __init__(self, rna_stats: RnaStats, n_genes: int, hidden_dim: int = HIDDEN_DIM, batch_size: int = BATCH):
+    def __init__(self, rna_stats: RnaStats, n_genes: int, n_variant_genes: int, hidden_dim: int = HIDDEN_DIM, batch_size: int = BATCH):
         super().__init__()
-        self.cnv_encoder =  CNVEmbedding(n_genes, hidden_dim)
-        self.snv_encoder = SNVEmbedding(n_genes, hidden_dim)
+        self.cnv_encoder =  CNVEmbedding(n_variant_genes, hidden_dim)
+        self.snv_encoder = SNVEmbedding(n_variant_genes, hidden_dim)
         self.snv_masker = SNVMask(hidden_dim)
         self.clinical_encoder = ClinicalEmbedding(hidden_dim)
         self.rna_encoder = RnaEmbedding(rna_stats, hidden_dim)
