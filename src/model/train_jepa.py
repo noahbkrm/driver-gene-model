@@ -75,7 +75,7 @@ def JEPATraining(
     for batch in loader:
 
         batch = {
-            key: value.to(device)
+            key: value.to(device, non_blocking=True)
             for key, value in batch.items()
         }
 
@@ -95,7 +95,10 @@ def JEPATraining(
         total_loss += loss.item()
     
     avg_loss = total_loss / len(loader)
-
+    print(
+        "Embedding std:",
+        z_context_pred.std().item()
+    )
     return avg_loss
 
 def prepare_dataset(cohort: pd.DataFrame, train_means: dict[str, float], rna_stats: RnaStats):
@@ -116,7 +119,8 @@ def initializeLoader(dataset: PatientDataset, batch_size: int = BATCH):
     loader = DataLoader(
         dataset,
         batch_size=batch_size,
-        shuffle=False
+        shuffle=True,
+        pin_memory=True,
     )
 
     return loader
@@ -243,3 +247,4 @@ if __name__ == "__main__":
             optimizer,
         ) 
         print(f"Epoch {epoch+1}/{NUM_EPOCHS}, Loss: {loss:.4f}")
+        
