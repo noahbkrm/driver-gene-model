@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import numpy as np
 import pandas as pd
 from data import load_cohort
 from constants import *
@@ -10,6 +9,7 @@ from predictor import Predictor
 from dataset_handler import PatientDataset
 import copy
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def initialize_models(
@@ -103,6 +103,14 @@ def JEPATraining(
         "Embedding std:",
         z_context_pred.std().item()
     )
+    cos = F.cosine_similarity(
+        z_context_pred,
+        z_target,
+        dim=-1
+    ).mean()
+
+    print(f"Cosine similarity: {cos.item():.4f}")
+
     return avg_loss
 
 def prepare_dataset(cohort: pd.DataFrame, train_means: dict[str, float], rna_stats: RnaStats):
@@ -129,96 +137,28 @@ def initializeLoader(dataset: PatientDataset, batch_size: int = BATCH):
 
     return loader
 
+def generate_embeddings(model, loader, device):
 
-def smoke_test(
-        target_model,
-        context_model,
-        predictor_model,
-        loader,
-        optimizer,
-    ):
+    model.eval()
 
-    print("Running smoke test...")
-
-    # Get one batch
-    batch = next(iter(loader))
-
-    print("\nOriginal batch:")
-    for key, value in batch.items():
-        print(
-            key,
-            value.shape,
-            value.dtype,
-            value.device
-        )
-
-    # Move batch to GPU
-    batch = {
-        key: value.to(device)
-        for key, value in batch.items()
-    }
-
-    print("\nMoved batch:")
-    for key, value in batch.items():
-        print(
-            key,
-            value.shape,
-            value.dtype,
-            value.device
-        )
-
-    # Forward pass
-    target_model.eval()
-    context_model.train()
-    predictor_model.train()
+    embeddings = []
 
     with torch.no_grad():
-        z_target = target_model(
-            batch,
-            mask_snv=False
-        )
 
-    z_context = context_model(
-        batch,
-        mask_snv=True
-    )
+        for batch in loader:
 
-    z_pred = predictor_model(z_context)
+            batch = {
+                k:v.to(device)
+                for k,v in batch.items()
+            }
 
-    print("\nEmbeddings:")
-    print("z_target:", z_target.shape)
-    print("z_context:", z_context.shape)
-    print("z_pred:", z_pred.shape)
+            z = model(batch, mask_snv=False)
 
-    # Loss
-    loss_fn = nn.MSELoss()
+            embeddings.append(
+                z.cpu()
+            )
 
-    loss = loss_fn(
-        z_pred,
-        z_target
-    )
-
-    print("\nLoss:")
-    print(loss)
-
-    # Backprop
-    optimizer.zero_grad()
-
-    loss.backward()
-
-    optimizer.step()
-
-    print("\nBackprop successful!")
-
-    # Check GPU memory
-    if torch.cuda.is_available():
-        print("\nGPU memory:")
-        print(
-            torch.cuda.memory_allocated()/1024**2,
-            "MB allocated"
-        )
-
-    print("\nSmoke test passed!")
+    return torch.cat(embeddings, dim=0)
 
 if __name__ == "__main__":
     train_cohort = load_cohort()
@@ -242,15 +182,7 @@ if __name__ == "__main__":
         n_variant_genes=n_variant_genes
     )
 
-    smoke_test(
-        target_model,
-        context_model,
-        predictor,
-        loader,
-        optimizer
-    )
-
-    """ scaler = torch.amp.GradScaler("cuda")
+    scaler = torch.amp.GradScaler("cuda")
 
     for epoch in range(NUM_EPOCHS):
         loss = JEPATraining(
@@ -261,5 +193,33 @@ if __name__ == "__main__":
             optimizer,
             scaler,
         ) 
-        print(f"Epoch {epoch+1}/{NUM_EPOCHS}, Loss: {loss:.4f}") """
-        
+        print(f"Epoch {epoch+1}/{NUM_EPOCHS}, Loss: {loss:.4f}") 
+    
+    torch.save(  # Save JEPA checkpoint for reference later if needed
+        {
+            "context_model": context_model.state_dict(),
+            "target_model": target_model.state_dict(),
+            "predictor": predictor.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "epoch": epoch,
+        },
+        "jepa_checkpoint.pt"
+    )
+
+    context_model.eval() # Switch context model into eval mode
+
+    for p in context_model.parameters(): # Freeze the context model
+        p.requires_grad = False
+            
+    embeddings = generate_embeddings( # Generate the patient-level embeddings
+        context_model,
+        loader,
+        device
+    )
+    print(embeddings.shape)
+
+    torch.save(embeddings, "patient_embeddings.pt")
+
+    embedding_df = pd.DataFrame(embeddings.numpy())
+    embedding_df["patient_id"] = train_cohort.clinical.index
+    embedding_df.to_csv("patient_embeddings.csv", index=False)

@@ -55,10 +55,25 @@ def _make_clinical(rng: np.random.Generator, driver_alt: np.ndarray) -> pd.DataF
     purity = rng.integers(30, 96, N_PATIENTS)
     site = rng.integers(0, N_SITES, N_PATIENTS)
 
-    # Survival: baeline hazard scaled by stage, slightly worlsened by any driver hit
-    hazard = 0.2 * stage + 0.01 * driver_alt.any(axis=1)
-    os_months = rng.exponential(1.0 / hazard).clip(0, 120).astype(np.int32)
-    os_event = (os_months < 100).astype(np.int8)
+    # baseline hazard
+    hazard = (
+        0.03 * stage
+        + 0.5 * driver_alt[:, 0]
+        + 0.4 * driver_alt[:, 3]
+        + 0.3 * driver_alt[:, 7]
+    )
+
+    # true survival time
+    true_os = rng.exponential(scale=1 / hazard)
+
+    # administrative censoring
+    follow_up = rng.uniform(low=24, high=120, size=N_PATIENTS)
+
+    # observed survival
+    os_months = np.minimum(true_os,follow_up).astype(np.int32)
+
+    # event occurred before censoring
+    os_event = (true_os <= follow_up).astype(np.int8)
 
     df = pd.DataFrame(
         {
