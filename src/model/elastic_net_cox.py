@@ -1,5 +1,5 @@
 import pandas as pd
-from data import load_cohort
+from data import load_cohort, DRIVER_GENES
 
 from sksurv.util import Surv
 from sksurv.linear_model import CoxnetSurvivalAnalysis
@@ -13,6 +13,7 @@ def prepare_data():
 
     clinical = cohort.clinical.copy()
     snv = cohort.snv.copy()
+    driver_alt = cohort.driver_alt.copy()
 
     valid_idx = clinical.dropna(
         subset=["os_months", "os_event"]
@@ -23,7 +24,7 @@ def prepare_data():
 
     snv = snv.fillna(0)
 
-    return clinical, snv
+    return clinical, snv, driver_alt
 
 def run_cox_experiment(
     X: pd.DataFrame,
@@ -60,10 +61,21 @@ def run_cox_experiment(
         max_iter=100000
     )
 
-    cox.fit(
-        X_train,
-        y_train
+    cox.fit(X_train,y_train)
+
+    '''
+    coef = pd.Series(
+        cox.coef_[:, -1],
+        index=X_train.columns
     )
+
+    print(
+        coef.sort_values(
+            key=abs,
+            ascending=False
+        ).head(20)
+    )
+    '''
 
     risk_scores = cox.predict(X_test)
 
@@ -106,7 +118,7 @@ def prepare_clinical_features(clinical):
 
 def main():
 
-    clinical, snv = prepare_data()
+    clinical, snv, driver_alt = prepare_data()
 
 
     # Experiment 1
@@ -140,6 +152,35 @@ def main():
         clinical=clinical,
         name="SNV + Clinical"
     )
+
+    # Experiment 4
+
+    driver_matrix = pd.DataFrame(
+        driver_alt,
+        columns=DRIVER_GENES,
+        index=clinical.index
+    )
+
+    run_cox_experiment(
+        X=driver_matrix,
+        clinical=clinical,
+        name="True driver state"
+    )
+
+    # Experiment 5
+    oracle = pd.concat(
+        [
+            driver_matrix,
+            clinical_features
+        ],
+        axis=1
+    )
+
+    run_cox_experiment(
+        X=oracle,
+        clinical=clinical,
+        name="Oracle drivers + clinical"
+)
 
 if __name__ == "__main__":
     main()

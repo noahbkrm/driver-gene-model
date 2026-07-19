@@ -21,7 +21,7 @@ import pandas as pd
 
 # Constants
 
-N_PATIENTS = 1000
+N_PATIENTS = 5000
 N_BACKGROUND = 1990
 N_DRIVERS = 10
 N_GENES = N_BACKGROUND + N_DRIVERS
@@ -46,6 +46,7 @@ class Cohort:
     cnv: pd.DataFrame
     driver_genes: list[str]
     responders: dict[str, tuple[np.ndarray, np.ndarray]] # driver -> (gene_idx, log2fc)
+    driver_alt: pd.DataFrame
 
 # Builders
 def _make_clinical(rng: np.random.Generator, driver_alt: np.ndarray) -> pd.DataFrame:
@@ -55,12 +56,22 @@ def _make_clinical(rng: np.random.Generator, driver_alt: np.ndarray) -> pd.DataF
     purity = rng.integers(30, 96, N_PATIENTS)
     site = rng.integers(0, N_SITES, N_PATIENTS)
 
-    # baseline hazard
+    driver_effects = np.array([
+        0.25,
+        0.10,
+        0.04,
+        0.20,
+        0.0,
+        0.10,
+        0.0,
+        0.24,
+        -0.04,
+        0.0
+    ])
+
     hazard = (
-        0.03 * stage
-        + 0.5 * driver_alt[:, 0]
-        + 0.4 * driver_alt[:, 3]
-        + 0.3 * driver_alt[:, 7]
+        0.05 * stage
+        + driver_alt @ driver_effects
     )
 
     # true survival time
@@ -70,7 +81,7 @@ def _make_clinical(rng: np.random.Generator, driver_alt: np.ndarray) -> pd.DataF
     follow_up = rng.uniform(low=24, high=120, size=N_PATIENTS)
 
     # observed survival
-    os_months = np.minimum(true_os,follow_up).astype(np.int32)
+    os_months = np.minimum(true_os,follow_up).astype(np.float32)
 
     # event occurred before censoring
     os_event = (true_os <= follow_up).astype(np.int8)
@@ -85,8 +96,22 @@ def _make_clinical(rng: np.random.Generator, driver_alt: np.ndarray) -> pd.DataF
             "os_months": os_months,
             "os_event": os_event,
         },
-        index = pd.Index(PATIENT_IDS, name = "patient_id"),
-    ).astype("Int32")
+        index=pd.Index(PATIENT_IDS, name="patient_id"),
+    )
+
+    # Integer clinical variables
+    for col in [
+        "age",
+        "sex",
+        "stage",
+        "tumor_purity_pct",
+        "site",
+        "os_event",
+    ]:
+        df[col] = df[col].astype("Int32")
+
+    # Keep survival time continuous
+    df["os_months"] = df["os_months"].astype("float32")
 
     return df
 
@@ -104,7 +129,7 @@ def _pick_responders(
 
 def _make_driver_alterations(rng: np.random.Generator) -> np.ndarray:
     """Return a boolean mask of altered drivers"""
-    prevalence = rng.uniform(0.01, 0.03, N_DRIVERS)
+    prevalence = rng.uniform(0.05, 0.09, N_DRIVERS)
     alt = rng.random((N_PATIENTS, N_DRIVERS)) < prevalence
     # Gurantee 8 hits per driver
     for j in range(N_DRIVERS):
@@ -237,6 +262,12 @@ def load_cohort(seed: int = SEED) -> Cohort:
     cnv = _inject_missing(cnv, MISSING_FRAC["cnv"], rng)
     clinical = _inject_missing(clinical, MISSING_FRAC["clinical"], rng)
 
+    driver_alt_df = pd.DataFrame(
+        driver_alt.astype("int8"),
+        index=PATIENT_IDS,
+        columns=DRIVER_GENES
+    )
+
     return Cohort(
         clinical = clinical,
         rna = rna,
@@ -244,6 +275,7 @@ def load_cohort(seed: int = SEED) -> Cohort:
         cnv = cnv,
         driver_genes = DRIVER_GENES,
         responders = responders,
+        driver_alt=driver_alt_df
     )
 
 def main() -> None:
