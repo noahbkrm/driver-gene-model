@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from fusion import TokenEmbedding
 
 class AttentionPooling(nn.Module):
-    def __init__(self, input_tokens: TokenEmbedding = input_tokens, hidden_dim: int = HIDDEN_DIM, batch_size: int = BATCH):
+    def __init__(self, hidden_dim: int = HIDDEN_DIM, batch_size: int = BATCH):
         super().__init__()
         self.query = nn.Parameter(torch.randn(batch_size, 1, hidden_dim)) # q, "What information is useful for summarizing this patient?"
         self.Wq = nn.Parameter(torch.randn(768, 768))

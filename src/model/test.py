@@ -34,13 +34,10 @@ df2 = pd.DataFrame(
     }
 )
 
-df2 = df2.set_index("Gene_Name")
-df2 = df2.T
-print(df2)
 
-df2 = df2.fillna(df2.mean(axis = 0, numeric_only = True))
+device = torch.device(
+    "cuda" if torch.cuda.is_available()
+    else "cpu"
+)
 
-print(df2)
-
-state_tensor = torch.from_numpy(df2.to_numpy(dtype=np.int64)).unsqueeze(-1)
-print(state_tensor.shape)
+print(device)
