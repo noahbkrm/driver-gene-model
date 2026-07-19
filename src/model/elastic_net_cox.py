@@ -119,7 +119,12 @@ def prepare_clinical_features(clinical):
 def main():
 
     clinical, snv, driver_alt = prepare_data()
+    embedding_df = pd.read_csv(
+        "patient_embeddings.csv",
+        index_col="patient_id"
+    )
 
+    embedding_df = embedding_df.loc[clinical.index]
 
     # Experiment 1
     run_cox_experiment(
@@ -180,7 +185,15 @@ def main():
         X=oracle,
         clinical=clinical,
         name="Oracle drivers + clinical"
-)
+    )
+
+    # Experiment 6
+    run_cox_experiment(
+        X=embedding_df,
+        clinical=clinical,
+        name="JEPA embeddings"
+    )
+
 
 if __name__ == "__main__":
     main()

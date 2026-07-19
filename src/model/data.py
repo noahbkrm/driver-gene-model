@@ -50,7 +50,7 @@ class Cohort:
 
 # Builders
 def _make_clinical(rng: np.random.Generator, driver_alt: np.ndarray) -> pd.DataFrame:
-    age = rng.integers(30, 86, N_PATIENTS)
+    age = rng.integers(20, 86, N_PATIENTS)
     sex = rng.integers(0, 2, N_PATIENTS)
     stage = rng.choice([1,2,3,4], size = N_PATIENTS, p = [0.20, 0.30, 0.35, 0.15])
     purity = rng.integers(30, 96, N_PATIENTS)

@@ -65,6 +65,6 @@ class TokenEmbedding(nn.Module):
             ],
             dim=1
         )
-
+        
         return tokens
 

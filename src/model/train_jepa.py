@@ -88,8 +88,12 @@ def JEPATraining(
             z_context_raw = context_model(batch, mask_snv = True) # Calculate context with masking
             z_context_pred = predictor_model(z_context_raw) # Pass conext to predictor to for stabilization
 
-            # Compute MSE
-            loss = mse_loss_function(z_context_pred, z_target)
+            #VICReg variance penalty
+            std = torch.sqrt(z_context_pred.var(dim=0) + 1e-4)
+            var_loss = torch.mean(torch.relu(1 - std))
+
+            # Compute MSE and loss
+            loss = mse_loss_function(z_context_pred, z_target) + 5 * var_loss
 
         scaler.scale(loss).backward()
         scaler.step(optimizer)
@@ -239,6 +243,25 @@ if __name__ == "__main__":
             dim=0
         )
     )
+
+    print(embeddings.std())
+    print(embeddings.mean())
+
+    idx = torch.randint(0, embeddings.size(0), (1000, 2))
+
+    cosines = torch.stack([
+        F.cosine_similarity(
+            embeddings[i].unsqueeze(0),
+            embeddings[j].unsqueeze(0),
+            dim=1
+        ).squeeze()
+        for i, j in idx
+    ])
+
+    print("Mean cosine:", cosines.mean())
+    print("Std cosine:", cosines.std())
+    print("Min cosine:", cosines.min())
+    print("Max cosine:", cosines.max())
 
     torch.save(embeddings,"patient_embeddings.pt")
 
