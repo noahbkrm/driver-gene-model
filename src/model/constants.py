@@ -6,7 +6,7 @@ __all__ = [
     "NUM_EPOCHS"
 ]
 
-HIDDEN_DIM = 768
+HIDDEN_DIM = 256
 BATCH = 16
 LEARNING_RATE = 1e-4
 EMA_PARAM = 0.996

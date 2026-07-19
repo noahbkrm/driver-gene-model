@@ -64,6 +64,7 @@ def JEPATraining(
         predictor_model: Predictor,
         loader: DataLoader,
         optimizer,
+        scaler,
         ema_param: float = EMA_PARAM,
     ):
 
@@ -74,23 +75,26 @@ def JEPATraining(
     total_loss = 0
     for batch in loader:
 
+        optimizer.zero_grad()
+
         batch = {
             key: value.to(device, non_blocking=True)
             for key, value in batch.items()
         }
+        with torch.amp.autocast("cuda"):
+            with torch.no_grad():
+                z_target = target_model(batch, mask_snv = False) # Calculate target
 
-        with torch.no_grad():
-            z_target = target_model(batch, mask_snv = False) # Calculate target
-        z_context_raw = context_model(batch, mask_snv = True) # Calculate context with masking
-        z_context_pred = predictor_model(z_context_raw) # Pass conext to predictor to for stabilization
+            z_context_raw = context_model(batch, mask_snv = True) # Calculate context with masking
+            z_context_pred = predictor_model(z_context_raw) # Pass conext to predictor to for stabilization
 
-        optimizer.zero_grad()
+            # Compute MSE
+            loss = mse_loss_function(z_context_pred, z_target)
 
-        # Compute MSE
-        loss = mse_loss_function(z_context_pred, z_target)
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
 
-        loss.backward()
-        optimizer.step()
         update_target_model(target_model, context_model, ema_param)
         total_loss += loss.item()
     
@@ -238,6 +242,16 @@ if __name__ == "__main__":
         n_variant_genes=n_variant_genes
     )
 
+    smoke_test(
+        target_model,
+        context_model,
+        predictor,
+        loader,
+        optimizer
+    )
+
+    """ scaler = torch.amp.GradScaler("cuda")
+
     for epoch in range(NUM_EPOCHS):
         loss = JEPATraining(
             target_model,
@@ -245,6 +259,7 @@ if __name__ == "__main__":
             predictor,
             loader,
             optimizer,
+            scaler,
         ) 
-        print(f"Epoch {epoch+1}/{NUM_EPOCHS}, Loss: {loss:.4f}")
+        print(f"Epoch {epoch+1}/{NUM_EPOCHS}, Loss: {loss:.4f}") """
         

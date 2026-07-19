@@ -21,7 +21,7 @@ class PatientModel(nn.Module):
         self.clinical_encoder = ClinicalEmbedding(hidden_dim)
         self.rna_encoder = RnaEmbedding(rna_stats, hidden_dim)
         self.combine_tokens = TokenEmbedding(hidden_dim)
-        self.attention_pooling = AttentionPooling(hidden_dim, batch_size)
+        self.attention_pooling = AttentionPooling(hidden_dim)
 
     def forward(self, batch, mask_snv = False):
         clinical_tokens = self.clinical_encoder(
